@@ -51,7 +51,7 @@ public class DynamicAxis extends Axis
 	 * An accessor is required if referenced in the Jelly file.
 	 * @return
 	 */
-	public String getVarName()
+	public synchronized String getVarName()
 	{
 		return varName == null ? "" : varName;
 	}
@@ -60,7 +60,7 @@ public class DynamicAxis extends Axis
 	 * Ensures the list has at least one default value. Jenkins doesn't seem to
 	 * like empty lists returned from getValues() or rebuild().
 	 */
-	private void checkForDefaultValues()
+	private synchronized void checkForDefaultValues()
 	{
 		if( axisValues.isEmpty() )
 		{
@@ -74,7 +74,7 @@ public class DynamicAxis extends Axis
 	 * @see hudson.matrix.Axis#getValues()
 	 */
 	@Override
-	public List<String> getValues()
+	public synchronized List<String> getValues()
 	{
 		checkForDefaultValues();
 		return axisValues;
@@ -85,7 +85,7 @@ public class DynamicAxis extends Axis
 	 * @see hudson.matrix.Axis#getValueString()
 	 */
 	@Override
-	public String getValueString()
+	public synchronized String getValueString()
 	{
 		return getVarName();
 	}
@@ -97,7 +97,7 @@ public class DynamicAxis extends Axis
 	 * @see hudson.matrix.Axis#rebuild(hudson.matrix.MatrixBuild.MatrixBuildExecution)
 	 */
 	@Override
-	public List<String> rebuild( MatrixBuild.MatrixBuildExecution context )
+	public synchronized List<String> rebuild( MatrixBuild.MatrixBuildExecution context )
 	{
 		// clear any existing values to ensure we do not return old ones
 		LOGGER.fine( "Rebuilding axis names from variable '" + varName + "'" );
