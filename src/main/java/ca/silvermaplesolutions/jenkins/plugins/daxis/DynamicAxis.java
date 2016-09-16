@@ -9,13 +9,19 @@ import hudson.matrix.Axis;
 import hudson.matrix.AxisDescriptor;
 import hudson.matrix.MatrixBuild;
 import hudson.model.TaskListener;
+import hudson.slaves.EnvironmentVariablesNodeProperty;
+import hudson.slaves.NodeProperty;
 import hudson.util.FormValidation;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
+import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -51,6 +57,7 @@ public class DynamicAxis extends Axis
 	{
 		super( name, varName );
 		this.varName = varName;
+		axisValues.addAll(expandVariableIfPresent(getGlobalProperties()));
 	}
 
 	/**
@@ -119,14 +126,7 @@ public class DynamicAxis extends Axis
 		{
 			// attempt to get the current environment variables
 			final @Nonnull EnvVars vars = context.getBuild().getEnvironment( TaskListener.NULL );
-			
-			// only spaces are supported as separators, as per the original axis value definition
-			String varValue = vars.get( varName );
-			if( varValue != null )
-			{
-				LOGGER.log( Level.FINE, "Variable value is ''{0}''", varValue);
-				newAxisValues.addAll(Arrays.asList(Util.tokenize(varValue)));
-			}
+			newAxisValues.addAll(expandVariableIfPresent(vars));
 		}
 		catch( Exception e )
 		{
@@ -145,6 +145,31 @@ public class DynamicAxis extends Axis
 		axisValues.addAll(newAxisValues);
 		
 		return newAxisValues;
+	}
+
+	private List<String> expandVariableIfPresent( Map<String, String> vars )
+	{
+		String varValue = vars.get( varName );
+		if( varValue != null )
+		{
+			LOGGER.log( Level.FINE, "Variable value is ''{0}''", varValue);
+			// only spaces are supported as separators, as per the original axis value definition
+			return Arrays.asList(Util.tokenize(varValue));
+		}
+		return Collections.emptyList();
+	}
+
+	private static Map<String, String> getGlobalProperties()
+	{
+		Map<String, String> globalProperties = new HashMap<String, String>();
+		for( NodeProperty<?> nodeProperty : Jenkins.getInstance().getGlobalNodeProperties() )
+		{
+			if( nodeProperty instanceof EnvironmentVariablesNodeProperty )
+			{
+				globalProperties.putAll(((EnvironmentVariablesNodeProperty) nodeProperty).getEnvVars());
+			}
+		}
+		return globalProperties;
 	}
 
 	/**
@@ -198,8 +223,12 @@ public class DynamicAxis extends Axis
 				return FormValidation.warning( Messages.configPortableName() );
 			}
 
-			// see if it exists in the system; if not we cannot tell if it is valid or not
+			// see if it exists in the system or global variables; if not we cannot tell if it is valid or not
 			String content = System.getenv( value );
+			if( content == null )
+			{
+				content = getGlobalProperties().get( value );
+			}
 			if( content == null )
 			{
 				return FormValidation.warning( Messages.configBuildVariable() );
